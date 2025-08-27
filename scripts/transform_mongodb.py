@@ -1,13 +1,11 @@
 from pymongo import MongoClient
 import pg8000
+from datetime import datetime
 
 #Mongo DB Verbindung 
 client = MongoClient("mongodb://localhost:27018/")
 db = client["LetsMeet"]
 collection = db["users"]
-
-for doc in collection.find():
-    data = doc
 
 conn = pg8000.connect(
     host='localhost',
@@ -47,6 +45,36 @@ CREATE TABLE IF NOT EXISTS messages (
     timestamp TIMESTAMP
 )
 """)
+
+for doc in collection.find():
+    user_id = doc['_id']
+    name = doc.get('name')
+    phone = doc.get('phone')
+    friends = doc.get('friends', [])
+    created_at = datetime.fromisoformat(doc.get('createdAt'))
+    updated_at = datetime.fromisoformat(doc.get('updatedAt'))
+
+    cursor.execute("""
+        INSERT INTO users (id, name, phone, friends, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (id) DO NOTHING
+    """, (user_id, name, phone, friends, created_at, updated_at))
+
+ 
+    for like in doc.get('likes', []):
+        like_time = datetime.fromisoformat(like['timestamp'])
+        cursor.execute("""
+            INSERT INTO likes (user_id, liked_email, status, timestamp)
+            VALUES (%s, %s, %s, %s)
+        """, (user_id, like['liked_email'], like['status'], like_time))
+
+    for msg in doc.get('messages', []):
+        msg_time = datetime.fromisoformat(msg['timestamp'])
+        cursor.execute("""
+            INSERT INTO messages (user_id, conversation_id, receiver_email, message, timestamp)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (user_id, msg['conversation_id'], msg['receiver_email'], msg['message'], msg_time))
+
 
 conn.commit()
 cursor.close()
