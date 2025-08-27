@@ -36,3 +36,70 @@ Die zu migrierenden Daten stammen aus drei unterschiedlichen Quellen:
 *   **Versionierung:** Git
 
 Der PostgreSQL-Server wird über die `docker-compose.yml`-Datei in diesem Repository konfiguriert und bereitgestellt.
+
+
+## 5. Entity Relationship Model
+```mermaid
+erDiagram
+    USER {
+        int user_id PK
+        string first_name
+        string last_name
+        string email UK "Eindeutige E-Mail"
+        string phone_number
+        date birth_date
+        string gender
+        string interested_in
+        int city_id FK
+    }
+
+    CITY {
+        int city_id PK
+        string name
+        string zip_code
+    }
+
+    HOBBY {
+        int hobby_id PK
+        string name UK "Eindeutiges Hobby"
+    }
+
+    USER_HOBBY {
+        int user_id PK, FK
+        int hobby_id PK, FK
+    }
+
+    FRIENDSHIP {
+        int user_one_id PK, FK
+        int user_two_id PK, FK
+        datetime created_at
+    }
+
+    "LIKE" {
+        int like_id PK
+        int liker_id FK "Wer hat geliked?"
+        int liked_id FK "Wer wurde geliked?"
+        datetime created_at
+    }
+
+    MESSAGE {
+        int message_id PK
+        int sender_id FK
+        int receiver_id FK
+        text content
+        datetime sent_at
+    }
+
+    USER ||--|{ CITY : "lebt in"
+    USER ||--o{ USER_HOBBY : "hat"
+    HOBBY ||--o{ USER_HOBBY : "wird ausgeübt von"
+    
+    USER }o--o{ FRIENDSHIP : "ist befreundet mit"
+    
+    USER }o--o{ "LIKE" : "gibt"
+    USER }o--o{ "LIKE" : "erhält"
+
+    USER }o--o{ MESSAGE : "sendet"
+    USER }o--o{ MESSAGE : "empfängt"
+
+```
