@@ -1,7 +1,7 @@
 '''
 
 Use py ./excel_scripts/import_excel.py in the LetsMeet folder!!!
-For example: \LetsMeet> py ./excel_scripts/import_excel.py
+For example: /LetsMeet> py ./excel_scripts/import_excel.py
 
 '''
 
