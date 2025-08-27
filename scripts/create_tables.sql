@@ -28,3 +28,10 @@ CREATE TABLE "USER" (
                     REFERENCES CITY(city_id)
                     ON DELETE SET NULL
 );
+
+-- n:m Beziehung zwischen User und Hobby --
+CREATE TABLE USER_HOBBY (
+    user_id INT REFERENCES "USER"(user_id) ON DELETE CASCADE,
+    hobby_id INT REFERENCES HOBBY(hobby_id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, hobby_id)
+);
