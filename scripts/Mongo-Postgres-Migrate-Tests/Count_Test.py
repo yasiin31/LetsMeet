@@ -15,3 +15,13 @@ conn = pg8000.connect(
     port=5433
 )
 cursor = conn.cursor()
+
+# Users count
+mongo_users = mongo_collection.count_documents({})
+cursor.execute("SELECT COUNT(*) FROM users;")
+pg_users = cursor.fetchone()[0]
+
+if pg_users == mongo_users:
+    print(f"[OK] Users count matches: {pg_users}")
+else:
+    print(f"[ERROR] Users count mismatch. Mongo: {mongo_users}, Postgres: {pg_users}")
