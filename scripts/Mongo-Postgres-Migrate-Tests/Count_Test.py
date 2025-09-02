@@ -25,3 +25,13 @@ if pg_users == mongo_users:
     print(f"[OK] Users count matches: {pg_users}")
 else:
     print(f"[ERROR] Users count mismatch. Mongo: {mongo_users}, Postgres: {pg_users}")
+
+# Likes count
+mongo_likes = sum(len(doc.get("likes", [])) for doc in mongo_collection.find())
+cursor.execute("SELECT COUNT(*) FROM likes;")
+pg_likes = cursor.fetchone()[0]
+
+if pg_likes == mongo_likes:
+    print(f"[OK] Likes count matches: {pg_likes}")
+else:
+    print(f"[ERROR] Likes count mismatch. Mongo: {mongo_likes}, Postgres: {pg_likes}")
