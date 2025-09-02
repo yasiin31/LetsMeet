@@ -1,5 +1,7 @@
 '''
 
+Install pandas: py -m pip install pandas
+
 Use py ./excel_scripts/import_excel.py in the LetsMeet folder!!!
 For example: /LetsMeet> py ./excel_scripts/import_excel.py
 
@@ -35,10 +37,8 @@ def import_excel_to_postgres(excel_file_path, db_config):
         print(f"Error connecting to database: {e}")
         return
 
-    for sheet_name, df in excel_data.items():
+    for  table_name, df in excel_data.items():
         df.columns = [clean_column_name(col) for col in df.columns]
-
-        table_name = f"import_{clean_table_name(sheet_name)}"
 
         create_table_sql = generate_create_table_sql(table_name, df, conn)
 
@@ -82,9 +82,6 @@ def clean_column_name(column_name):
 
     return col_str.lower()
 
-def clean_table_name(table_name):
-    return clean_column_name(table_name)
-
 def generate_create_table_sql(table_name, df, conn):
     columns = []
 
@@ -124,7 +121,7 @@ def generate_insert_sql(table_name, df):
 if __name__ == "__main__":
     db_config = {
         'host': 'localhost',
-        'port': '5432',
+        'port': '5433',
         'database': 'lf8_lets_meet_db',
         'user': 'user',
         'password': 'secret'
