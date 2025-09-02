@@ -1,3 +1,10 @@
+'''
+
+Use py ./scripts/transform_xml.py in the LetsMeet folder!!!
+For example: /LetsMeet> py ./scripts/transform_xml.py
+
+'''
+
 import xml.etree.ElementTree as ET
 import psycopg2
 from psycopg2 import sql
