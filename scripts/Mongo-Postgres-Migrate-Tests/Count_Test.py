@@ -35,3 +35,16 @@ if pg_likes == mongo_likes:
     print(f"[OK] Likes count matches: {pg_likes}")
 else:
     print(f"[ERROR] Likes count mismatch. Mongo: {mongo_likes}, Postgres: {pg_likes}")
+
+# Messages count
+mongo_msgs = sum(len(doc.get("messages", [])) for doc in mongo_collection.find())
+cursor.execute("SELECT COUNT(*) FROM messages;")
+pg_msgs = cursor.fetchone()[0]
+
+if pg_msgs == mongo_msgs:
+    print(f"[OK] Messages count matches: {pg_msgs}")
+else:
+    print(f"[ERROR] Messages count mismatch. Mongo: {mongo_msgs}, Postgres: {pg_msgs}")
+
+cursor.close()
+conn.close()
