@@ -1,7 +1,5 @@
 '''
 
-Install pandas: py -m pip install pandas
-
 Use py ./scripts/transform_xml.py in the LetsMeet folder!!!
 For example: /LetsMeet> py ./scripts/transform_xml.py
 
