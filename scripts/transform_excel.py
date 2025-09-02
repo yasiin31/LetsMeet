@@ -2,8 +2,8 @@
 
 Install pandas: py -m pip install pandas
 
-Use py ./excel_scripts/import_excel.py in the LetsMeet folder!!!
-For example: /LetsMeet> py ./excel_scripts/import_excel.py
+Use py ./scripts/transform_excel.py in the LetsMeet folder!!!
+For example: /LetsMeet> py ./scripts/transform_excel.py
 
 '''
 
