@@ -43,5 +43,22 @@ for doc in mongo_collection.find():
             print(f"[FEHLER] Like von {doc['_id']} zu {like['liked_email']} stimmt nicht überein!")
 print("[TEST Likes abgeschlossen]")
 
+print("\n=== Prüfe Messages ===")
+for doc in mongo_collection.find():
+    for msg in doc.get("messages", []):
+        cursor.execute("""
+            SELECT receiver_email, message FROM messages 
+            WHERE user_id=%s AND conversation_id=%s
+        """, (doc["_id"], msg["conversation_id"]))
+        result = cursor.fetchone()
+        if not result:
+            print(f"[FEHLER] Message von {doc['_id']} in Conversation {msg['conversation_id']} fehlt!")
+            continue
+        pg_receiver, pg_message = result
+        if pg_receiver != msg["receiver_email"] or pg_message != msg["message"]:
+            print(f"[FEHLER] Message von {doc['_id']} in Conversation {msg['conversation_id']} stimmt nicht!")
+print("[TEST Messages abgeschlossen]")
 
-cursor = conn.cursor()
+cursor.close()
+conn.close()
+print("\n[ALLES GETESTET] Vollabgleich abgeschlossen.")
