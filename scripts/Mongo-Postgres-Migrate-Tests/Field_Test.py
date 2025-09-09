@@ -27,5 +27,21 @@ for doc in mongo_collection.find():
         print(f"[FEHLER] User {doc['_id']} stimmt nicht überein!")
 print("[TEST Users abgeschlossen]")
 
+print("\n=== Prüfe Likes ===")
+for doc in mongo_collection.find():
+    for like in doc.get("likes", []):
+        cursor.execute("""
+            SELECT liked_email, status FROM likes 
+            WHERE user_id=%s AND liked_email=%s
+        """, (doc["_id"], like["liked_email"]))
+        result = cursor.fetchone()
+        if not result:
+            print(f"[FEHLER] Like von {doc['_id']} zu {like['liked_email']} fehlt in Postgres!")
+            continue
+        pg_email, pg_status = result
+        if pg_email != like["liked_email"] or pg_status != like["status"]:
+            print(f"[FEHLER] Like von {doc['_id']} zu {like['liked_email']} stimmt nicht überein!")
+print("[TEST Likes abgeschlossen]")
+
 
 cursor = conn.cursor()
