@@ -15,6 +15,9 @@ conn = pg8000.connect(
     port=5433
 )
 
+cursor = conn.cursor()
+
+
 print("=== Prüfe Users ===")
 for doc in mongo_collection.find():
     cursor.execute("SELECT name, phone FROM users WHERE id=%s", (doc["_id"],))
