@@ -14,31 +14,35 @@ Die Kundin legt größten Wert auf eine saubere Konzeption und nachvollziehbare 
 
 Unsere Hauptaufgaben sind:
 
-1.  **Datenanalyse:** Eingehende Analyse der bereitgestellten Datenquellen zur Identifizierung von Entitäten, Attributen und Beziehungen.
-2.  **Konzeptueller Entwurf:** Erstellung eines ausgefeilten konzeptuellen Datenmodells (z.B. als ER-Diagramm), das als Diskussionsgrundlage mit der Kundin dient.
-3.  **Logischer Entwurf:** Überführung des konzeptuellen Modells in ein logisches Datenmodell (relationales Schema).
-4.  **Datenbankimplementierung:** Erstellung des physischen Datenbankschemas in PostgreSQL mittels DDL-Skripten.
-5.  **Datenmigration:** Entwicklung von Skripten zum Import, zur Bereinigung und zur Transformation der Daten aus allen Quellen in die neue PostgreSQL-Datenbank.
-6.  **Dokumentation:** Lückenlose Dokumentation aller Entwurfsphasen und Zwischenschritte in Markdown-Dateien.
+1. **Datenanalyse:** Eingehende Analyse der bereitgestellten Datenquellen zur Identifizierung von Entitäten, Attributen und Beziehungen.
+2. **Konzeptueller Entwurf:** Erstellung eines ausgefeilten konzeptuellen Datenmodells (z.B. als ER-Diagramm), das als Diskussionsgrundlage mit der Kundin dient.
+3. **Logischer Entwurf:** Überführung des konzeptuellen Modells in ein logisches Datenmodell (relationales Schema).
+4. **Datenbankimplementierung:** Erstellung des physischen Datenbankschemas in PostgreSQL mittels DDL-Skripten.
+5. **Datenmigration:** Entwicklung von Skripten zum Import, zur Bereinigung und zur Transformation der Daten aus allen Quellen in die neue PostgreSQL-Datenbank.
+6. **Dokumentation:** Lückenlose Dokumentation aller Entwurfsphasen und Zwischenschritte in Markdown-Dateien.
 
 ## 3. Datenquellen
 
 Die zu migrierenden Daten stammen aus drei unterschiedlichen Quellen:
 
-*   **Excel-Datei (`.xlsx`):** Haupt-Dump der ehemaligen relationalen Datenbank. Enthält die Kern-Entitäten wie Nutzerprofile, Stammdaten etc.
-*   **MongoDB-Backup:** NoSQL-Datenbank-Export, der **Likes** und **Nachrichten** aus einer anderen App enthält.
-*   **XML-Datei (`.xml`):** Enthält strukturierte Daten zu den **Hobbys** der Nutzer.
+* **Excel-Datei (`.xlsx`):** Haupt-Dump der ehemaligen relationalen Datenbank. Enthält die Kern-Entitäten wie Nutzerprofile, Stammdaten etc.
+* **MongoDB-Backup:** NoSQL-Datenbank-Export, der **Likes** und **Nachrichten** aus einer anderen App enthält.
+* **XML-Datei (`.xml`):** Enthält strukturierte Daten zu den **Hobbys** der Nutzer.
 
 ## 4. Technologie-Stack & Zielsystem
 
-*   **Zieldatenbank:** PostgreSQL
-*   **Laufzeitumgebung:** Docker
-*   **Versionierung:** Git
+* **Zieldatenbank:** PostgreSQL
+* **Laufzeitumgebung:** Docker
+* **Versionierung:** Git
 
 Der PostgreSQL-Server wird über die `docker-compose.yml`-Datei in diesem Repository konfiguriert und bereitgestellt.
 
-
 ## 5. Entity Relationship Model
+
+![ERM Picture](./images/letsMeetErm.png)
+
+## 6. Entity Relationship Diagram
+
 ```mermaid
 erDiagram
     USER {
@@ -93,13 +97,12 @@ erDiagram
     USER ||--|{ CITY : "lebt in"
     USER ||--o{ USER_HOBBY : "hat"
     HOBBY ||--o{ USER_HOBBY : "wird ausgeübt von"
-    
+  
     USER }o--o{ FRIENDSHIP : "ist befreundet mit"
-    
+  
     USER }o--o{ "LIKE" : "gibt"
     USER }o--o{ "LIKE" : "erhält"
 
     USER }o--o{ MESSAGE : "sendet"
     USER }o--o{ MESSAGE : "empfängt"
-
 ```
