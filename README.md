@@ -39,7 +39,7 @@ Der PostgreSQL-Server wird über die `docker-compose.yml`-Datei in diesem Reposi
 
 ## 5. Entity Relationship Model
 
-![ERM Picture](./images/letsmeetErm.png)
+![ERM Picture](./images/letsmeetERM.png)
 
 ## 6. Entity Relationship Diagram
 
