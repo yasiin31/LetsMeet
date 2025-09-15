@@ -15,9 +15,15 @@ Stellen Sie sicher, dass folgende Komponenten installiert sind:
 ### **Installation**
 
 Installieren Sie die benötigten Python-Pakete
+```
 py -m pip install pandas
+```
+```
 py -m pip install pg8000
+```
+```
 py -m pip install pymongo
+```
 
 ### **Betrieb**
 
