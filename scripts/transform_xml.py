@@ -1,114 +1,124 @@
 '''
 
+Install pg8000: py -m pip install pg8000
+
 Use py ./scripts/transform_xml.py in the LetsMeet folder!!!
 For example: /LetsMeet> py ./scripts/transform_xml.py
 
 '''
 
 import xml.etree.ElementTree as ET
-import psycopg2
-from psycopg2 import sql
+import pg8000
+from validationTabel.validation_tabel import valiTabel
 
-def create_tables_if_not_exist(cursor):
-    cursor.execute("""
-                   CREATE TABLE IF NOT EXISTS xml_users (
-                                                               email VARCHAR(255) PRIMARY KEY,
-                       name VARCHAR(255)
-                       )
-                   """)
+valiTabel()
+xml_file_path = "Lets_Meet_Hobbies.xml"
+conn = pg8000.connect(
+    host='localhost',
+    database='lf8_lets_meet_db',
+    user='user',
+    password='secret',
+    port=5433
+)
+cursor = conn.cursor()
+print("[OK] Verbindung zu PostgreSQL hergestellt.")
 
-    cursor.execute("""
-                   CREATE TABLE IF NOT EXISTS user_hobbies (
-                                                                      id SERIAL PRIMARY KEY,
-                                                                      email VARCHAR(255) REFERENCES xml_users(email),
-                       hobby VARCHAR(255),
-                       UNIQUE(email, hobby)
-                       )
-                   """)
+tree = ET.parse(xml_file_path)
+root = tree.getroot()
 
-    print("Tables created or already exist")
+count_hobbies_added = 0
+count_user_hobbies_added = 0
+users_not_found = 0
 
-def parse_xml_and_import(xml_file_path, db_config):
+for user_elem in root.findall('user'):
+    email_elem = user_elem.find('email')
+    if email_elem is None or email_elem.text is None:
+        continue
+    email = email_elem.text.strip().lower()
+
+    hobbies = []
+
+    for hobby_elem in user_elem.findall('hobby'):
+        if hobby_elem.text is not None:
+            hobbies.append(hobby_elem.text.strip())
+
+    hobbies_elem = user_elem.find('hobbies')
+    if hobbies_elem is not None:
+        for hobby_elem in hobbies_elem.findall('hobby'):
+            if hobby_elem.text is not None:
+                hobbies.append(hobby_elem.text.strip())
+
+    if not hobbies:
+        continue
+
     try:
-        tree = ET.parse(xml_file_path)
-        root = tree.getroot()
-        print(f"Successfully parsed XML file: {xml_file_path}")
+        cursor.execute("SELECT user_id FROM users WHERE LOWER(email) = %s", (email,))
+        user_result = cursor.fetchone()
     except Exception as e:
-        print(f"Error parsing XML file: {e}")
-        return
+        print(f"[ERROR] Datenbankfehler bei User-Lookup für {email}: {e}")
+        continue
 
-    try:
-        conn = psycopg2.connect(
-            host=db_config['host'],
-            port=db_config['port'],
-            database=db_config['database'],
-            user=db_config['user'],
-            password=db_config['password']
-        )
-        cursor = conn.cursor()
-        print("Successfully connected to PostgreSQL database")
+    if not user_result:
+        print(f"[WARN] User mit E-Mail {email} nicht gefunden. Überspringe Hobbys.")
+        users_not_found += 1
+        continue
 
-        create_tables_if_not_exist(cursor)
-        conn.commit()
+    user_id = user_result[0]
 
-    except Exception as e:
-        print(f"Error connecting to database: {e}")
-        return
-
-    users_count = 0
-    hobbies_count = 0
-
-    for user_elem in root.findall('user'):
-        try:
-            email = user_elem.find('email').text.strip() if user_elem.find('email') is not None else None
-            name = user_elem.find('name').text.strip() if user_elem.find('name') is not None else None
-
-            if not email or not name:
-                print(f"Skipping user with missing data: {email}, {name}")
-                continue
-
-            cursor.execute("""
-                           INSERT INTO xml_users (email, name)
-                           VALUES (%s, %s)
-                               ON CONFLICT (email) DO NOTHING
-                           """, (email, name))
-
-            users_count += 1
-
-            hobbies_elem = user_elem.find('hobbies')
-            if hobbies_elem is not None:
-                for hobby_elem in hobbies_elem.findall('hobby'):
-                    hobby = hobby_elem.text.strip() if hobby_elem.text else None
-
-                    if hobby:
-                        cursor.execute("""
-                                       INSERT INTO user_hobbies (email, hobby)
-                                       VALUES (%s, %s)
-                                           ON CONFLICT DO NOTHING
-                                       """, (email, hobby))
-                        hobbies_count += 1
-
-        except Exception as e:
-            print(f"Error processing user {email}: {e}")
-            conn.rollback()
+    for hobby_name in hobbies:
+        if not hobby_name:
             continue
 
-    conn.commit()
-    print(f"Successfully imported {users_count} users and {hobbies_count} hobbies")
+        try:
+            cursor.execute("SELECT hobby_id FROM hobby WHERE name = %s", (hobby_name,))
+            hobby_result = cursor.fetchone()
+        except Exception as e:
+            print(f"[ERROR] Datenbankfehler bei Hobby-Lookup für '{hobby_name}': {e}")
+            continue
 
-    cursor.close()
-    conn.close()
-    print("Database connection closed")
+        if hobby_result:
+            hobby_id = hobby_result[0]
+        else:
+            try:
+                cursor.execute(
+                    "INSERT INTO hobby (name) VALUES (%s) RETURNING hobby_id",
+                    (hobby_name,)
+                )
+                hobby_id = cursor.fetchone()[0]
+                count_hobbies_added += 1
+                print(f"[OK] Neues Hobby '{hobby_name}' hinzugefügt (ID: {hobby_id})")
+            except Exception as e:
+                print(f"[ERROR] Fehler beim Erstellen des Hobbys '{hobby_name}': {e}")
+                continue
 
-if __name__ == "__main__":
-    db_config = {
-        'host': 'localhost',
-        'port': '5433',
-        'database': 'lf8_lets_meet_db',
-        'user': 'user',
-        'password': 'secret'
-    }
+        try:
+            cursor.execute(
+                "SELECT 1 FROM user_hobby WHERE user_id = %s AND hobby_id = %s",
+                (user_id, hobby_id)
+            )
+            if cursor.fetchone():
+                continue
+        except Exception as e:
+            print(f"[ERROR] Datenbankfehler bei User-Hobby-Check: {e}")
+            continue
 
-    xml_file_path = "Lets_Meet_Hobbies.xml"
+        try:
+            cursor.execute(
+                "INSERT INTO user_hobby (user_id, hobby_id) VALUES (%s, %s)",
+                (user_id, hobby_id)
+            )
+            count_user_hobbies_added += 1
+        except Exception as e:
+            print(f"[ERROR] Fehler beim Erstellen der User-Hobby-Verbindung: {e}")
+            continue
 
-    parse_xml_and_import(xml_file_path, db_config)
+conn.commit()
+
+print(f"\n[ZUSAMMENFASSUNG]")
+print(f"Neue Hobbys hinzugefügt: {count_hobbies_added}")
+print(f"User-Hobby-Verbindungen erstellt: {count_user_hobbies_added}")
+print(f"User nicht gefunden: {users_not_found}")
+
+cursor.close()
+conn.close()
+print("[DONE] XML-Import abgeschlossen.")

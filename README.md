@@ -1,6 +1,55 @@
-# Datenmigration & Datenbank-Design für Let's Meet GmbH
+# Datenmigration & Datenbank-Design für Let's Meet
 
-Dieses Repository dient der Analyse, dem Entwurf und der Migration der Bestandsdaten für die Dating-App der Let's Meet GmbH.
+Dieses Repository dient der Analyse, dem Entwurf und der Migration der Betsandsdaten für die Let's Meet Dating-App.
+
+# 0. Start-Up
+
+### **Voraussetzungen**
+
+Stellen Sie sicher, dass folgende Komponenten installiert sind:
+
+* Python (Version 3.7 oder höher)
+* Docker
+* Git (zum Klonen des Repositorys)
+
+### **Installation**
+
+Installieren Sie die benötigten Python-Pakete
+py -m pip install pandas
+py -m pip install pg8000
+py -m pip install pymongo
+
+### **Betrieb**
+
+Löscht alle Tabellen und setzt die Datenbank zurück:
+
+```
+py ./scripts/General/reset_db.py
+```
+
+
+
+Führt alle Transform-Skripte aus:
+
+```
+py ./scripts/General/transform_all.py
+```
+
+
+
+Count-Test für alle Transform-Skripte:
+
+```
+py ./scripts/General/Count_Test_Big.py
+```
+
+
+
+Felder-Test für alle Transform-Skripte:
+
+```
+py ./scripts/General/Field_Test_Big.py
+```
 
 ## 1. Hintergrund & Ausgangslage
 

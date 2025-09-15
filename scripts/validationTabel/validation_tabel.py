@@ -1,14 +1,7 @@
-from pymongo import MongoClient
 import pg8000
 
 def valiTabel():
-    # MongoDB-Verbindung 
-    client = MongoClient("mongodb://localhost:27018/")
-    db = client["LetsMeet"]
-    collection = db["users"]
-    print("[OK] Verbindung zu MongoDB aufgebaut.")
 
-    # PostgreSQL-Verbindung 
     conn = pg8000.connect(
         host='localhost',
         database='lf8_lets_meet_db',
@@ -37,7 +30,7 @@ def valiTabel():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
-        user_id TEXT PRIMARY KEY,
+        user_id SERIAL PRIMARY KEY,
         first_name TEXT,
         last_name TEXT,
         email TEXT UNIQUE,
@@ -53,7 +46,7 @@ def valiTabel():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS user_hobby (
-        user_id TEXT REFERENCES users(user_id),
+        user_id INT REFERENCES users(user_id),
         hobby_id INT REFERENCES hobby(hobby_id),
         PRIMARY KEY (user_id, hobby_id)
     )
@@ -61,8 +54,8 @@ def valiTabel():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS friendship (
-        user_one_id TEXT REFERENCES users(user_id),
-        user_two_id TEXT REFERENCES users(user_id),
+        user_one_id INT REFERENCES users(user_id),
+        user_two_id INT REFERENCES users(user_id),
         created_at TIMESTAMP,
         PRIMARY KEY (user_one_id, user_two_id)
     )
@@ -71,8 +64,8 @@ def valiTabel():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS likes (
         like_id SERIAL PRIMARY KEY,
-        liker_id TEXT REFERENCES users(user_id),
-        liked_id TEXT,
+        liker_id INT REFERENCES users(user_id),
+        liked_id INT REFERENCES users(user_id),
         status TEXT,
         created_at TIMESTAMP
     )
@@ -81,8 +74,8 @@ def valiTabel():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS messages (
         message_id SERIAL PRIMARY KEY,
-        sender_id TEXT REFERENCES users(user_id),
-        receiver_id TEXT,
+        sender_id INT REFERENCES users(user_id),
+        receiver_id INT REFERENCES users(user_id),
         conversation_id INT,
         message TEXT,
         sent_at TIMESTAMP

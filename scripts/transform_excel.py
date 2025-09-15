@@ -1,6 +1,7 @@
 '''
 
 Install pandas: py -m pip install pandas
+Install pg8000: py -m pip install pg8000
 
 Use py ./scripts/transform_excel.py in the LetsMeet folder!!!
 For example: /LetsMeet> py ./scripts/transform_excel.py
@@ -8,125 +9,208 @@ For example: /LetsMeet> py ./scripts/transform_excel.py
 '''
 
 import pandas as pd
-import psycopg2
-from psycopg2 import sql
+import pg8000
+import re
+from validationTabel.validation_tabel import valiTabel
 
+valiTabel()
 
+conn = pg8000.connect(
+    host='localhost',
+    database='lf8_lets_meet_db',
+    user='user',
+    password='secret',
+    port=5433
+)
+cursor = conn.cursor()
+print("[OK] Verbindung zu PostgreSQL hergestellt.")
 
-def import_excel_to_postgres(excel_file_path, db_config):
+excel_file = "Lets Meet DB Dump.xlsx"
+df = pd.read_excel(excel_file)
+print(f"[OK] Excel-Datei eingelesen: {len(df)} Einträge gefunden")
 
-    try:
-        excel_data = pd.read_excel(excel_file_path, sheet_name=None)
-        print(f"Successfully read Excel file: {excel_file_path}")
-        print(f"Found sheets: {list(excel_data.keys())}")
-    except Exception as e:
-        print(f"Error reading Excel file: {e}")
-        return
+count_users_updated = 0
+count_hobbies_added = 0
+count_cities_added = 0
 
-    try:
-        conn = psycopg2.connect(
-            host=db_config['host'],
-            port=db_config['port'],
-            database=db_config['database'],
-            user=db_config['user'],
-            password=db_config['password']
-        )
-        cursor = conn.cursor()
-        print("Successfully connected to PostgreSQL database")
-    except Exception as e:
-        print(f"Error connecting to database: {e}")
-        return
+def extract_hobbies(hobby_string):
+    hobbies = []
+    if pd.isna(hobby_string):
+        return hobbies
 
-    for  table_name, df in excel_data.items():
-        df.columns = [clean_column_name(col) for col in df.columns]
+    hobby_list = str(hobby_string).split(';')
 
-        create_table_sql = generate_create_table_sql(table_name, df, conn)
-
-        try:
-            cursor.execute(create_table_sql)
-            print(f"Created table: {table_name}")
-        except Exception as e:
-            print(f"Error creating table {table_name}: {e}")
-            conn.rollback()
+    for hobby in hobby_list:
+        hobby = hobby.strip()
+        if not hobby:
             continue
 
-        try:
-            df = df.where(pd.notnull(df), None)
+        priority_match = re.search(r'%(\d+)%', hobby)
+        priority = int(priority_match.group(1)) if priority_match else 50
 
-            insert_sql = generate_insert_sql(table_name, df)
+        hobby_name = re.sub(r'%\d+%', '', hobby).strip()
 
-            data_tuples = [tuple(x) for x in df.to_numpy()]
+        if hobby_name:
+            hobbies.append((hobby_name, priority))
 
-            cursor.executemany(insert_sql, data_tuples)
-            conn.commit()
+    return hobbies
 
-            print(f"Inserted {len(data_tuples)} rows into {table_name}")
+def process_address(address_string):
+    if pd.isna(address_string):
+        return None, None, None
 
-        except Exception as e:
-            print(f"Error inserting data into {table_name}: {e}")
-            conn.rollback()
+    parts = str(address_string).split(',')
+    if len(parts) < 2:
+        return None, None, None
 
-    cursor.close()
-    conn.close()
-    print("Database connection closed")
+    street = parts[0].strip()
 
-def clean_column_name(column_name):
-    col_str = str(column_name)
-
-    col_str = col_str.replace(' ', '_').replace('-', '_').replace('.', '_')
-
-    col_str = ''.join(c if c.isalnum() or c == '_' else '' for c in col_str)
-
-    if col_str and col_str[0].isdigit():
-        col_str = f"col_{col_str}"
-
-    return col_str.lower()
-
-def generate_create_table_sql(table_name, df, conn):
-    columns = []
-
-    for col_name, col_type in df.dtypes.items():
-        if col_type == 'int64':
-            pg_type = 'BIGINT'
-        elif col_type == 'float64':
-            pg_type = 'DOUBLE PRECISION'
-        elif col_type == 'bool':
-            pg_type = 'BOOLEAN'
-        elif col_type == 'datetime64[ns]':
-            pg_type = 'TIMESTAMP'
-        else:
-            pg_type = 'TEXT'
-
-        clean_col = clean_column_name(col_name)
-        columns.append(f'"{clean_col}" {pg_type}')
-
-    columns_sql = ', '.join(columns)
-
-    if conn:
-        return sql.SQL('CREATE TABLE IF NOT EXISTS {} ({})').format(
-            sql.Identifier(table_name),
-            sql.SQL(columns_sql)
-        ).as_string(conn)
+    if len(parts) >= 3:
+        # Format: "Straße, PLZ, Ort"
+        zip_code = parts[1].strip()
+        city_name = parts[2].strip()
     else:
-        return f'CREATE TABLE IF NOT EXISTS "{table_name}" ({columns_sql})'
+        # Format: "Straße, PLZ Ort" - wir müssen PLZ und Ort trennen
+        location_parts = parts[1].strip().split(' ')
+        if len(location_parts) >= 2:
+            zip_code = location_parts[0]
+            city_name = ' '.join(location_parts[1:])
+        else:
+            zip_code = None
+            city_name = None
 
-def generate_insert_sql(table_name, df):
-    columns = [clean_column_name(col) for col in df.columns]
-    placeholders = ', '.join(['%s'] * len(columns))
-    columns_str = ', '.join([f'"{col}"' for col in columns])
+    return street, zip_code, city_name
 
-    return f'INSERT INTO "{table_name}" ({columns_str}) VALUES ({placeholders})'
+def normalize_gender(gender_string):
+    if pd.isna(gender_string):
+        return None
 
+    gender = str(gender_string).lower().strip()
+    if gender in ['m', 'male', 'mann']:
+        return 'm'
+    elif gender in ['w', 'f', 'female', 'frau']:
+        return 'w'
+    elif gender in ['nb', 'nonbinary', 'nicht binär']:
+        return 'nonbinary'
+    else:
+        return None
 
-if __name__ == "__main__":
-    db_config = {
-        'host': 'localhost',
-        'port': '5433',
-        'database': 'lf8_lets_meet_db',
-        'user': 'user',
-        'password': 'secret'
-    }
+def normalize_interests(interest_string):
+    if pd.isna(interest_string):
+        return None
 
-    excel_file_path = "Lets Meet DB Dump.xlsx"
+    interests = str(interest_string).lower().strip()
+    result = []
 
-    import_excel_to_postgres(excel_file_path, db_config)
+    if 'm' in interests or 'male' in interests or 'mann' in interests:
+        result.append('m')
+    if 'w' in interests or 'f' in interests or 'female' in interests or 'frau' in interests:
+        result.append('w')
+    if 'nb' in interests or 'nonbinary' in interests or 'nicht binär' in interests:
+        result.append('nonbinary')
+
+    return ','.join(result) if result else None
+
+def process_birthdate(date_string):
+    if pd.isna(date_string):
+        return None
+
+    try:
+        if isinstance(date_string, datetime):
+            return date_string.date()
+        elif isinstance(date_string, str):
+            # Versuche verschiedene Formate
+            for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'):
+                try:
+                    return datetime.strptime(date_string, fmt).date()
+                except ValueError:
+                    continue
+        return None
+    except:
+        return None
+
+for index, row in df.iterrows():
+    name = row.iloc[0] if len(row) > 0 else ''
+    name_parts = name.split(', ')
+    if len(name_parts) == 2:
+        last_name, first_name = name_parts
+    else:
+        first_name = name
+        last_name = ''
+
+    email = row.iloc[4] if len(row) > 4 else None
+    if pd.isna(email):
+        continue
+
+    address = row.iloc[1] if len(row) > 1 else ''
+    street, zip_code, city_name = process_address(address)
+
+    city_id = None
+    if city_name and zip_code:
+        cursor.execute("SELECT city_id FROM city WHERE name = %s AND zip_code = %s",
+                       (city_name, zip_code))
+        result = cursor.fetchone()
+
+        if result:
+            city_id = result[0]
+        else:
+            cursor.execute("INSERT INTO city (name, zip_code) VALUES (%s, %s) RETURNING city_id",
+                           (city_name, zip_code))
+            city_id = cursor.fetchone()[0]
+            count_cities_added += 1
+
+    phone = row.iloc[2] if len(row) > 2 else ''
+    if pd.isna(phone):
+        phone = None
+    else:
+        phone = re.sub(r'[^0-9+]', '', str(phone))
+
+    gender = normalize_gender(row.iloc[5] if len(row) > 5 else '')
+
+    interested_in = normalize_interests(row.iloc[6] if len(row) > 6 else '')
+
+    birth_date = process_birthdate(row.iloc[7] if len(row) > 7 else '')
+
+    cursor.execute("""
+                   UPDATE users
+                   SET first_name = %s, last_name = %s, phone_number = %s,
+                       birth_date = %s, gender = %s, interested_in = %s, city_id = %s
+                   WHERE email = %s
+                       RETURNING user_id
+                   """, (first_name, last_name, phone, birth_date, gender, interested_in, city_id, email))
+
+    result = cursor.fetchone()
+    if result:
+        user_id = result[0]
+        count_users_updated += 1
+
+        hobby_string = row.iloc[3] if len(row) > 3 else ''
+        hobbies = extract_hobbies(hobby_string)
+
+        for hobby_name, priority in hobbies:
+            cursor.execute("SELECT hobby_id FROM hobby WHERE name = %s", (hobby_name,))
+            result = cursor.fetchone()
+
+            if result:
+                hobby_id = result[0]
+            else:
+                cursor.execute("INSERT INTO hobby (name) VALUES (%s) RETURNING hobby_id", (hobby_name,))
+                hobby_id = cursor.fetchone()[0]
+
+            cursor.execute("""
+                           INSERT INTO user_hobby (user_id, hobby_id)
+                           VALUES (%s, %s)
+                               ON CONFLICT (user_id, hobby_id) DO NOTHING
+                           """, (user_id, hobby_id))
+
+            count_hobbies_added += 1
+
+conn.commit()
+
+print(f"[OK] {count_users_updated} Benutzer aktualisiert.")
+print(f"[OK] {count_cities_added} Städte hinzugefügt.")
+print(f"[OK] {count_hobbies_added} Hobby-Verknüpfungen hinzugefügt.")
+
+cursor.close()
+conn.close()
+print("[DONE] Excel-Daten-Migration abgeschlossen.")
