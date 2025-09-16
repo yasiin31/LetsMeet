@@ -1,19 +1,25 @@
+'''
+
+Install pymongo: py -m pip install pymongo
+Install pg8000: py -m pip install pg8000
+
+Use py ./scripts/transform_excel.py in the LetsMeet folder!!!
+For example: /LetsMeet> py ./scripts/transform_excel.py
+
+'''
+
 from pymongo import MongoClient
 import pg8000
 from datetime import datetime
 from validationTabel.validation_tabel import valiTabel
 
-# Validierung und Erstellung der Tabellen, falls diese nicht existieren.
 valiTabel()
 
-
-# MongoDB Verbindung 
 client = MongoClient("mongodb://localhost:27018/")
 db = client["LetsMeet"]
 collection = db["users"]
 print("[OK] Verbindung zu MongoDB aufgebaut.")
 
-#PostgreSQL Verbindung
 conn = pg8000.connect(
     host='localhost',
     database='lf8_lets_meet_db',
@@ -23,73 +29,88 @@ conn = pg8000.connect(
 )
 cursor = conn.cursor()
 
-# === Migration starten ===
 count_users, count_friendships, count_likes, count_msgs = 0, 0, 0, 0
 
 for doc in collection.find():
-    user_id = str(doc["_id"])        # Mongo _id = E-Mail
-    email = str(doc["_id"])
-    phone = doc.get("phone")
+    email = doc['_id']
 
-    # Namen aufsplitten (Format: "Nachname, Vorname")
-    full_name = doc.get("name")
-    first_name, last_name = None, None
-    if full_name and "," in full_name:
-        last_name, first_name = [x.strip() for x in full_name.split(",", 1)]
-    elif full_name:
-        parts = full_name.split(" ")
-        first_name, last_name = parts[0], " ".join(parts[1:])
+    name = doc.get('name', '')
+    name_parts = name.split(', ')
+    if len(name_parts) == 2:
+        last_name, first_name = name_parts
+    else:
+        first_name = name
+        last_name = ''
 
-    # Zeitstempel
-    created_at = datetime.fromisoformat(doc.get("createdAt")) if doc.get("createdAt") else None
-    updated_at = datetime.fromisoformat(doc.get("updatedAt")) if doc.get("updatedAt") else None
+    phone = doc.get('phone', '')
 
-    # User einfügen (fehlende Felder = NULL)
+    birth_date = None
+    gender = None
+    interested_in = None
+    city_id = None
+
+    created_at = datetime.fromisoformat(doc.get('createdAt').replace('Z', '+00:00'))
+    updated_at = datetime.fromisoformat(doc.get('updatedAt').replace('Z', '+00:00'))
+
     cursor.execute("""
-        INSERT INTO users (user_id, first_name, last_name, email, phone_number,
-                           birth_date, gender, interested_in, city_id, created_at, updated_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        ON CONFLICT (user_id) DO NOTHING
-    """, (user_id, first_name, last_name, email, phone,
-          None, None, None, None, created_at, updated_at))
+                   INSERT INTO users (first_name, last_name, email, phone_number,
+                                      birth_date, gender, interested_in, city_id,
+                                      created_at, updated_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (email) DO
+                   UPDATE SET
+                       first_name = EXCLUDED.first_name,
+                       last_name = EXCLUDED.last_name,
+                       phone_number = EXCLUDED.phone_number,
+                       updated_at = EXCLUDED.updated_at
+                       RETURNING user_id
+                   """, (first_name, last_name, email, phone, birth_date, gender,
+                         interested_in, city_id, created_at, updated_at))
     count_users += 1
 
-    # Freundschaften
-    for friend_id in doc.get("friends", []):
-        cursor.execute("""
-            INSERT INTO friendship (user_one_id, user_two_id, created_at)
-            VALUES (%s,%s,%s)
-            ON CONFLICT DO NOTHING
-        """, (user_id, friend_id, datetime.utcnow()))
-        count_friendships += 1
 
-    # Likes
-    for like in doc.get("likes", []):
-        liker = user_id
-        liked = like.get("liked_email")
-        status = like.get("status")
-        ts = datetime.strptime(like.get("timestamp"), "%Y-%m-%d %H:%M:%S")
-        cursor.execute("""
-            INSERT INTO likes (liker_id, liked_id, status, created_at)
-            VALUES (%s,%s,%s,%s)
-        """, (liker, liked, status, ts))
-        count_likes += 1
+conn.commit()
+print(f"[OK] {count_users} Benutzer übertragen.")
 
-    # Messages
-    for msg in doc.get("messages", []):
-        receiver = msg.get("receiver_email")
-        conversation_id = msg.get("conversation_id")
-        message = msg.get("message")
-        ts = datetime.strptime(msg.get("timestamp"), "%Y-%m-%d %H:%M:%S")
-        cursor.execute("""
-            INSERT INTO messages (sender_id, receiver_id, conversation_id, message, sent_at)
-            VALUES (%s,%s,%s,%s,%s)
-        """, (user_id, receiver, conversation_id, message, ts))
-        count_msgs += 1
+for doc in collection.find():
+    email = doc['_id']
+
+    cursor.execute("SELECT user_id FROM users WHERE email = %s", (email,))
+    result = cursor.fetchone()
+    if not result:
+        continue
+
+    user_id = result[0]
+
+    for like in doc.get('likes', []):
+        cursor.execute("SELECT user_id FROM users WHERE email = %s", (like['liked_email'],))
+        liked_user_result = cursor.fetchone()
+
+        if liked_user_result:
+            liked_id = liked_user_result[0]
+            like_time = datetime.fromisoformat(like['timestamp'].replace('Z', '+00:00'))
+
+            cursor.execute("""
+                           INSERT INTO likes (liker_id, liked_id, status, created_at)
+                           VALUES (%s, %s, %s, %s)
+                           """, (user_id, liked_id, like['status'], like_time))
+            count_likes += 1
+
+    for msg in doc.get('messages', []):
+        cursor.execute("SELECT user_id FROM users WHERE email = %s", (msg['receiver_email'],))
+        receiver_result = cursor.fetchone()
+
+        if receiver_result:
+            receiver_id = receiver_result[0]
+            msg_time = datetime.fromisoformat(msg['timestamp'].replace('Z', '+00:00'))
+
+            cursor.execute("""
+                           INSERT INTO messages (sender_id, receiver_id, conversation_id, message, sent_at)
+                           VALUES (%s, %s, %s, %s, %s)
+                           """, (user_id, receiver_id, msg['conversation_id'], msg['message'], msg_time))
+            count_msgs += 1
 
 conn.commit()
 
-print(f"[OK] {count_users} Benutzer übertragen.")
 print(f"[OK] {count_friendships} Freundschaften übertragen.")
 print(f"[OK] {count_likes} Likes übertragen.")
 print(f"[OK] {count_msgs} Nachrichten übertragen.")
